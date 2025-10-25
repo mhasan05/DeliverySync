@@ -1,19 +1,20 @@
 from rest_framework import serializers
 from .models import DeliveryRequest
 from account.models import UserAuth
+from common_portal.utils import calculate_distance_and_time
 
 
 class DriverDetailsSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserAuth
-        fields = ['id', 'name', 'email', 'image', 'phone_number','vehicle', 'average_rating','total_ratings']
-        # If you added a rating field in UserAuth, include it here:
-        # fields = ['id', 'name', 'email', 'image', 'phone_number', 'role', 'rating']
+        fields = ['id', 'name', 'email', 'image', 'phone_number','vehicle', 'average_rating','total_ratings','location_latitude','location_longitude']
 
 
 class DeliveryRequestSerializer(serializers.ModelSerializer):
     assign_driver_details = DriverDetailsSerializer(source='assign_driver', read_only=True)
     customer_details = serializers.SerializerMethodField()
+    distance_km = serializers.SerializerMethodField()
+    estimated_time_minutes = serializers.SerializerMethodField()
 
     class Meta:
         model = DeliveryRequest
@@ -28,18 +29,46 @@ class DeliveryRequestSerializer(serializers.ModelSerializer):
                 "email": obj.customer.email,
                 "phone_number": obj.customer.phone_number,
                 "image": obj.customer.image.url if obj.customer.image else None,
-                "role": obj.customer.role
+                "role": obj.customer.role,
+                "location_latitude": obj.customer.location_latitude,
+                "location_longitude": obj.customer.location_longitude
             }
+        return None
+
+    def get_distance_km(self, obj):
+        if obj.assign_driver and obj.customer:
+            distance, _ = calculate_distance_and_time(
+                obj.assign_driver.location_latitude,
+                obj.assign_driver.location_longitude,
+                obj.customer.location_latitude,
+                obj.customer.location_longitude
+            )
+            return distance
+        return None
+
+    def get_estimated_time_minutes(self, obj):
+        if obj.assign_driver and obj.customer:
+            _, eta = calculate_distance_and_time(
+                obj.assign_driver.location_latitude,
+                obj.assign_driver.location_longitude,
+                obj.customer.location_latitude,
+                obj.customer.location_longitude
+            )
+            return eta
         return None
 
     def to_representation(self, instance):
         rep = super().to_representation(instance)
 
-        # Add readable driver details when assigned
-        if instance.assign_driver:
-            rep["assign_driver_details"] = DriverDetailsSerializer(instance.assign_driver).data
-        else:
-            rep["assign_driver_details"] = None
+        # Driver details
+        rep["assign_driver_details"] = (
+            DriverDetailsSerializer(instance.assign_driver).data
+            if instance.assign_driver else None
+        )
+
+        # Distance & ETA
+        rep["distance_km"] = self.get_distance_km(instance)
+        rep["estimated_time_minutes"] = self.get_estimated_time_minutes(instance)
 
         return rep
 

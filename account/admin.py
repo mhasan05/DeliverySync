@@ -14,6 +14,8 @@ class CustomUserAdmin(UserAdmin):
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
         ('Personal Info', {'fields': ('name', 'image', 'phone_number', 'address')}),
+        ('Delivery Fee', {'fields': ('default_delivery_fee',)}),
+        ('Location', {'fields': ('location_latitude', 'location_longitude')}),
         ('Role & Permissions', {'fields': ('role', 'is_active', 'is_staff', 'is_superuser')}),
         ('Driver Info', {'fields': ('vehicle', 'vehicle_registration_number', 'driving_license_number')}),
         ('Account Info', {'fields': ('account_balance', 'date_joined')}),

@@ -24,4 +24,7 @@ urlpatterns = [
     path('api/v1/auth/', include('account.urls')),
     path('api/v1/order/', include('customer_portal.urls')),
     path('api/v1/common/', include('common_portal.urls')),
+    path('api/v1/settings/', include('settings.urls')),
+    path('api/v1/chat/', include('chat.urls')),
+    path("api/v1/notifications/", include("notifications.urls")),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

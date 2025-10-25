@@ -24,7 +24,12 @@ class DeliveryRequest(models.Model):
     product_weight = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     product_amount = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     pickup_location = models.CharField(max_length=255, blank=True)
+    pickup_location_lat = models.CharField(max_length=255,blank=True) #example = 22.379916347385546
+    pickup_location_long = models.CharField(max_length=255,blank=True) #example = 91.8307064358106
     delivery_location = models.CharField(max_length=255, blank=True)
+    delivery_location_lat = models.CharField(max_length=255,blank=True) #example = 22.379916347385546
+    delivery_location_long = models.CharField(max_length=255,blank=True) #example = 91.8307064358106
+    distance_km = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     assign_driver = models.ForeignKey(
         UserAuth, on_delete=models.SET_NULL, null=True, blank=True, related_name="assigned_deliveries"
     )
@@ -43,8 +48,6 @@ class DeliveryRequest(models.Model):
         ],
         default='pending'
     )
-    expected_delivery_time = models.DateTimeField(blank=True, null=True)
-    actual_delivery_time = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -7,7 +7,7 @@ from rest_framework import status
 from .models import ChatRoom
 from .serializers import ChatRoomSerializer, ChatMessageSerializer
 from django.conf import settings
-from accounts.models import User  # Assuming you have a User model in accounts app
+from account.models import UserAuth as User
 from django.db.models import Q
 
 class ChatRoomView(APIView):
@@ -86,6 +86,7 @@ class ChatMessageView(APIView):
                 "sender": request.user.id,
                 "content": request.data.get("content")
             }
+            
             serializer = ChatMessageSerializer(data=data)
             if serializer.is_valid():
                 serializer.save()

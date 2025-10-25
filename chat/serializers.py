@@ -9,14 +9,14 @@ User = get_user_model()
 # serializers.py
 
 class UserSummarySerializer(serializers.ModelSerializer):
-    profile_picture = serializers.SerializerMethodField()
+    image = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['id', 'full_name', 'profile_picture']
+        fields = ['id', 'name', 'image']
 
-    def get_profile_picture(self, obj):
-        return obj.profile_picture.url if obj.profile_picture else None
+    def get_image(self, obj):
+        return obj.image.url if obj.image else None
 
 
 class ChatMessageSerializer(serializers.ModelSerializer):

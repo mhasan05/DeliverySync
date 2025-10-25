@@ -4,7 +4,11 @@ from rest_framework import status, permissions
 from .models import DeliveryRequest
 from account.models import UserAuth
 from .serializers import *
-
+from channels.layers import get_channel_layer
+from django.shortcuts import get_object_or_404
+from asgiref.sync import async_to_sync
+from notifications.models import *
+from common_portal.utils import calculate_distance_and_time
 # Example delivery fee calculation function
 def calculate_delivery_fee(customer, product_weight):
     base_fee = 50  # example base
@@ -18,13 +22,26 @@ class CreateDeliveryRequestView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     def post(self, request):
         customer = request.user
+        data = request.data
+        required_fields = ["pickup_location_lat", "pickup_location_long", "delivery_location_lat", "delivery_location_long"]
+        if not all(field in data for field in required_fields):
+            return Response({"status":"error","message":"Pickup and dropoff coordinates are required."}, status=400)
+        pickup_location_lat = float(data["pickup_location_lat"])
+        pickup_location_long = float(data["pickup_location_long"])
+        delivery_location_lat = float(data["delivery_location_lat"])
+        delivery_location_long = float(data["delivery_location_long"])
+
+        distance_km, estimate_time = calculate_distance_and_time(pickup_location_lat, pickup_location_long, delivery_location_lat, delivery_location_long)
+        default_delivery_fee = customer.default_delivery_fee if hasattr(customer, 'default_delivery_fee') else 0
+        fee = distance_km * default_delivery_fee
+
         serializer = DeliveryRequestSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=400)
 
         # Calculate delivery fee
         product_weight = request.data.get('product_weight', 0)
-        fee = calculate_delivery_fee(customer, product_weight)
+        # fee = calculate_delivery_fee(customer, product_weight)
 
         delivery_request = DeliveryRequest.objects.create(
             customer=customer,
@@ -34,7 +51,12 @@ class CreateDeliveryRequestView(APIView):
             product_weight=product_weight,
             product_amount=request.data.get('product_amount',''),
             pickup_location=request.data.get('pickup_location',''),
+            pickup_location_lat=request.data.get('pickup_location_lat',''),
+            pickup_location_long=request.data.get('pickup_location_long',''),
             delivery_location=request.data.get('delivery_location',''),
+            delivery_location_lat=request.data.get('delivery_location_lat',''),
+            delivery_location_long=request.data.get('delivery_location_long',''),
+            distance_km=distance_km,
             delivery_fee=fee,
             assign_driver=None
         )
@@ -83,7 +105,42 @@ class AcceptDeliveryRequestView(APIView):
         delivery.assign_driver = assign_driver_id
         delivery.status = status_update
         delivery.save()
-        serializer = DeliveryRequestUpdateSerializer(delivery)
+        try:
+            # ---- Create Notification ----
+            title = "Assign Driver"
+            message = f"{request.user.name} accept your order."
+            data = {"order_id": delivery.id}
+
+            notification = Notification.objects.create(
+                title=title,
+                message=message,
+                data=data,
+                created_at=timezone.now()
+            )
+
+            invited_user = get_object_or_404(User, id=delivery.customer.id)
+
+            # Create NotificationRecipient link
+            NotificationRecipient.objects.create(
+                notification=notification,
+                recipient=invited_user
+            )
+            # ---- Push to WebSocket ----
+            channel_layer = get_channel_layer()
+            group_name = f"user_{invited_user.id}_notifications"
+
+            async_to_sync(channel_layer.group_send)(
+                group_name,
+                {
+                    "type": "send_notification",  # must match consumer method
+                    "title": title,
+                    "message": message,
+                    "data": data,
+                    "created_at": notification.created_at.isoformat(),
+                }
+            )
+        except:
+            pass
         return Response({"status":"success","message":"Successfully accept order"}, status=200)
     
 
@@ -98,18 +155,59 @@ class UpdateDeliveryStatus(APIView):
             delivery = DeliveryRequest.objects.get(id=delivery_id)
         except DeliveryRequest.DoesNotExist:
             return Response({"status":"error","message":"Delivery request not found"}, status=404)
-
+        if delivery.status == 'confirmed':
+            return Response({"status":"error","message":"This order already confirmed"}, status=404)
         assign_driver_id = delivery.assign_driver
         if assign_driver_id != request.user:
             return Response({"status":"error","message":"You can't update this delivery"}, status=404)
         status_update = request.data.get('status', None)
 
         if status_update:
-            if status_update not in ['pending','assigned','in_transit','delivered','cancelled']:
+            if status_update not in ['pending','confirmed','assigned','picked_up','on_the_way','delivered','cancelled']:
                 return Response({"status":"error","message":"Invalid status value"}, status=400)
         delivery.status = status_update
         delivery.save()
-        serializer = DeliveryRequestUpdateSerializer(delivery)
+        try:
+            # ---- Create Notification ----
+            title = "Oder Update"
+            if status_update == 'picked_up':
+                message = f"A driver picked your parcel"
+            elif status_update == 'on_the_way':
+                message = f"A driver on the way with your parcel"
+            elif status_update == 'delivered':
+                message = f"your order mark as deliverd"
+            data = {"order_id": delivery.id}
+
+            notification = Notification.objects.create(
+                title=title,
+                message=message,
+                data=data,
+                created_at=timezone.now()
+            )
+
+            invited_user = get_object_or_404(User, id=delivery.customer.id)
+
+            # Create NotificationRecipient link
+            NotificationRecipient.objects.create(
+                notification=notification,
+                recipient=invited_user
+            )
+            # ---- Push to WebSocket ----
+            channel_layer = get_channel_layer()
+            group_name = f"user_{invited_user.id}_notifications"
+
+            async_to_sync(channel_layer.group_send)(
+                group_name,
+                {
+                    "type": "send_notification",  # must match consumer method
+                    "title": title,
+                    "message": message,
+                    "data": data,
+                    "created_at": notification.created_at.isoformat(),
+                }
+            )
+        except:
+            pass
         return Response({"status":"success","message":"Successfully Update order"}, status=200)
     
 
@@ -166,16 +264,16 @@ class OrderDetailView(APIView):
             return Response({"status":"error","message":"Order not found"}, status=404)
 
         # Optional: restrict access
-        if request.user.role == "customer" and order.customer != request.user:
-            return Response({"status":"error","message":"Not authorized"}, status=403)
-        if request.user.role == "driver" and order.assign_driver != request.user:
-            return Response({"status":"error","message":"Not authorized"}, status=403)
+        # if (request.user.role == "customer" or request.user.role == "company") and order.customer != request.user:
+        #     return Response({"status":"error","message":"Not authorized"}, status=403)
+        # if request.user.role == "driver" and order.assign_driver != request.user:
+        #     return Response({"status":"error","message":"Not authorized"}, status=403)
 
         serializer = DeliveryRequestSerializer(order)
         return Response({"status":"success","data":serializer.data}, status=200)
     
 
-# 1️⃣ Customer order list
+# Pending order list
 class PendingOrderListView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
