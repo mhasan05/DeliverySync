@@ -13,7 +13,7 @@ class UserAuth(AbstractBaseUser,PermissionsMixin):
         ('driver', 'Driver'),
         ('company', 'Company'),
     )
-    name = models.CharField(max_length=10)
+    name = models.CharField(max_length=255)
     email = models.EmailField(max_length=100,unique=True)
     image = models.ImageField(upload_to='profile_images', default='profile_images/default.jpg',null=True,blank=True)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES)

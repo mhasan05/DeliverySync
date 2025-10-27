@@ -70,7 +70,7 @@ class ChatMessageView(APIView):
             for message in room.messages.filter(is_seen=False):
                 message.is_seen = True
                 message.save()  # Mark messages as seen
-            serializer = ChatMessageSerializer(room.messages, many=True)
+            serializer = ChatMessageSerializer(room.messages, many=True, context={'request': request})
             return Response(serializer.data, status=status.HTTP_200_OK)
         else:
             return Response({"error": "Chat room not found or access denied"}, status=status.HTTP_404_NOT_FOUND)

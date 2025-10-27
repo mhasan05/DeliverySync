@@ -14,7 +14,7 @@ class Message(models.Model):
     room = models.ForeignKey(ChatRoom, on_delete=models.CASCADE, related_name='messages')
     sender = models.ForeignKey(UserAuth, on_delete=models.CASCADE)
     content = models.TextField(blank=True)
-    images = models.ImageField(upload_to='chat/', blank=True, null=True)
+    images = models.ImageField(upload_to='chat/', blank=True,default='')
     is_seen = models.BooleanField(default=False)
     timestamp = models.DateTimeField(auto_now_add=True)
 

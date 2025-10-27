@@ -233,7 +233,7 @@ class ConfirmDelivery(APIView):
 
 
 
-# 1️⃣ Customer order list
+# Customer order list
 class CustomerOrderListView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -243,7 +243,7 @@ class CustomerOrderListView(APIView):
         serializer = DeliveryRequestSerializer(orders, many=True)
         return Response({"status":"success","data":serializer.data}, status=200)
 
-# 2️⃣ Driver order list
+# Driver order list
 class DriverOrderListView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -253,7 +253,7 @@ class DriverOrderListView(APIView):
         serializer = DeliveryRequestSerializer(orders, many=True)
         return Response({"status":"success","data":serializer.data}, status=200)
 
-# 3️⃣ Order details
+# Order details
 class OrderDetailView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 

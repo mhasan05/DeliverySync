@@ -13,16 +13,36 @@ class UserSummarySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['id', 'name', 'image']
+        fields = ['id', 'name', 'image','role']
 
     def get_image(self, obj):
         return obj.image.url if obj.image else None
 
 
 class ChatMessageSerializer(serializers.ModelSerializer):
+    role = serializers.SerializerMethodField()
+    user_image = serializers.SerializerMethodField()
     class Meta:
         model = Message
-        fields = ['id', 'room', 'sender', 'content', 'images','is_seen', 'timestamp']  # include 'room'
+        fields = ['id', 'room', 'sender','role','user_image', 'content', 'images','is_seen', 'timestamp']  # include 'room'
+    def get_role(self, obj):
+        request = self.context.get('request')
+        if not request:
+            return None
+        # For GET: infer other user based on chat room participants
+        current_user = request.user
+        other_user = obj.sender if obj.sender == current_user else obj.sender
+        return other_user.role
+    
+    def get_user_image(self, obj):
+        request = self.context.get('request')
+
+        if not request:
+            return None
+        # For GET: infer other user based on chat room participants
+        current_user = request.user
+        other_user = obj.sender if obj.sender == current_user else obj.sender
+        return other_user.image.url
 
 
 class ChatRoomSerializer(serializers.ModelSerializer):
