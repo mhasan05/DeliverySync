@@ -36,23 +36,23 @@ class DeliveryRequestSerializer(serializers.ModelSerializer):
         return None
 
     def get_distance_km(self, obj):
-        if obj.assign_driver and obj.customer:
+        if obj.pickup_location_lat and obj.pickup_location_long and obj.delivery_location_lat and obj.delivery_location_long:
             distance, _ = calculate_distance_and_time(
-                obj.assign_driver.location_latitude,
-                obj.assign_driver.location_longitude,
-                obj.customer.location_latitude,
-                obj.customer.location_longitude
+                obj.pickup_location_lat,
+                obj.pickup_location_long,
+                obj.delivery_location_lat,
+                obj.delivery_location_long
             )
             return distance
         return None
 
     def get_estimated_time_minutes(self, obj):
-        if obj.assign_driver and obj.customer:
+        if obj.pickup_location_lat and obj.pickup_location_long and obj.delivery_location_lat and obj.delivery_location_long:
             _, eta = calculate_distance_and_time(
-                obj.assign_driver.location_latitude,
-                obj.assign_driver.location_longitude,
-                obj.customer.location_latitude,
-                obj.customer.location_longitude
+                obj.pickup_location_lat,
+                obj.pickup_location_long,
+                obj.delivery_location_lat,
+                obj.delivery_location_long
             )
             return eta
         return None

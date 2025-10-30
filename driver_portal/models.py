@@ -32,3 +32,12 @@ class DriverRating(models.Model):
 
     def __str__(self):
         return f"Rating {self.rating} for {self.driver.name} by {self.customer.name}"
+    
+class DriverEarningHistory(models.Model):
+    driver = models.ForeignKey(UserAuth, on_delete=models.CASCADE)
+    delivery = models.ForeignKey(DeliveryRequest, on_delete=models.CASCADE)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.driver.name} earned {self.amount} for delivery {self.delivery.id}"

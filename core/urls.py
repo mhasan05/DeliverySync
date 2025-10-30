@@ -27,4 +27,6 @@ urlpatterns = [
     path('api/v1/settings/', include('settings.urls')),
     path('api/v1/chat/', include('chat.urls')),
     path("api/v1/notifications/", include("notifications.urls")),
+    path("api/v1/driver/", include("driver_portal.urls")),
+
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

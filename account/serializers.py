@@ -1,5 +1,7 @@
 from rest_framework import serializers
 from account.models import UserAuth
+from django.db.models import Count, Q
+from customer_portal.models import DeliveryRequest as Order
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -56,8 +58,32 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         representation = super().to_representation(instance)
-        # Hide vehicle fields for non-drivers
+
+        # Handle orders based on user role (driver vs customer)
+        if instance.role == "driver":
+            # For driver, use assign_driver as the filter field
+            total_orders = Order.objects.filter(assign_driver=instance).count()
+            cancelled_orders = Order.objects.filter(assign_driver=instance, status="cancelled").count()
+            daily_orders = Order.objects.filter(assign_driver=instance).extra(select={
+                'day': 'DATE(created_at)'
+            }).values('day').annotate(count=Count('id'))
+        else:
+            # For customer, use customer as the filter field
+            total_orders = Order.objects.filter(customer=instance).count()
+            cancelled_orders = Order.objects.filter(customer=instance, status="cancelled").count()
+            daily_orders = Order.objects.filter(customer=instance).extra(select={
+                'day': 'DATE(created_at)'
+            }).values('day').annotate(count=Count('id'))
+
+        # Add calculated values to representation
+        representation['total_orders'] = total_orders
+        representation['cancelled_orders'] = cancelled_orders
+        orders_per_day = {entry['day']: entry['count'] for entry in daily_orders}
+        representation['orders_per_day'] = orders_per_day
+
+        # Hide vehicle-related fields for non-drivers
         if instance.role != "driver":
             for field in ["vehicle", "vehicle_registration_number", "driving_license_number"]:
                 representation.pop(field, None)
+
         return representation

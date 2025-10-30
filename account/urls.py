@@ -19,4 +19,6 @@ urlpatterns = [
     path('profile/<int:user_id>/update/', UpdateUserProfileView.as_view(), name='update-user'),
     path('profile/update/', UpdateSelfUserProfileView.as_view(), name='profile_update'),
     path('profile/<int:user_id>/delete/', DeleteUserView.as_view(), name='delete-user'),
+
+    path("dashboard/", AdminDashboardView.as_view(), name="admin-dashboard"),
 ]

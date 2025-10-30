@@ -4,7 +4,7 @@ from rest_framework import status, permissions
 from customer_portal.models import DeliveryRequest
 from .models import *
 from account.models import UserAuth
-from .serializers import DriverRatingSerializer
+from .serializers import *
 
 class RateDriverView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -37,3 +37,18 @@ class RateDriverView(APIView):
             return Response({"status":"success","message": "Driver rated successfully."}, status=status.HTTP_201_CREATED)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+
+class DriverEarningHistoryView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request,pk=None):
+        driver = request.user
+        if driver.role != "driver":
+            return Response({"status":"error","message": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+        if pk is not None:
+            history = DriverEarningHistory.objects.filter(pk=pk, driver=driver)
+        else:
+            history = DriverEarningHistory.objects.filter(driver=driver)
+        serializer = DriverEarningHistorySerializer(history, many=True)
+        return Response({"status":"success","data":serializer.data}, status=status.HTTP_200_OK)

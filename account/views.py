@@ -11,6 +11,9 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.core.files.base import ContentFile
 import base64
 import uuid
+from django.db.models import Sum, Count
+from datetime import timedelta
+from customer_portal.models import DeliveryRequest as Order
 
 
 def get_tokens_for_user(user):
@@ -161,6 +164,26 @@ class LoginView(APIView):
             return Response({"status":"error","message": "Invalid email or password."}, status=400)
         if not user.is_active:
             return Response({"status":"error","message": "Account not verified. Please verify OTP."}, status=403)
+        
+        # Calculate the streak
+        last_login_date = user.last_login_date
+        today = timezone.now().date()
+
+        # Check if the user is logging in on consecutive days
+        if last_login_date:
+            if last_login_date == today - timedelta(days=1):
+                # Continuation of streak
+                user.login_streak += 1
+            else:
+                # Break in streak, reset to 1
+                user.login_streak = 1
+        else:
+            # First login
+            user.login_streak = 1
+
+        # Update the last login date
+        user.last_login_date = today
+        user.save()
 
         tokens = get_tokens_for_user(user)
         if user.role == "driver":
@@ -292,7 +315,7 @@ class UpdateUserProfileView(APIView):
             user.image = image
 
         # Update other fields
-        for field in ['name', 'phone_number', 'address', 'vehicle', 'vehicle_registration_number', 'driving_license_number','location_latitude','location_longitude']:
+        for field in ['name', 'phone_number', 'address', 'vehicle', 'vehicle_registration_number', 'driving_license_number','location_latitude','location_longitude','is_online']:
             if request.data.get(field) is not None:
                 setattr(user, field, request.data.get(field))
 
@@ -350,3 +373,38 @@ class UpdateSelfUserProfileView(APIView):
         user.save()
         serializer = UserProfileSerializer(user)
         return Response({"status":"success","data": serializer.data}, status=200)
+
+
+
+from django.db.models.functions import TruncMonth
+class AdminDashboardView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        # 1. Total Users
+        total_users = UserAuth.objects.count()
+
+        # 2. Total Earnings (sum of completed orders)
+        total_earnings = Order.objects.filter(status="delivered").aggregate(total=Sum("delivery_fee"))["total"] or 0
+
+        # 3. New Users (e.g., new users registered in the last 30 days)
+        new_users = UserAuth.objects.filter(date_joined__gte=timezone.now() - timedelta(days=30)).count()
+
+        # 4. User Growth (users registered per month for the past year)
+        user_growth_data = UserAuth.objects.filter(date_joined__gte=timezone.now() - timedelta(days=365))
+        # Using TruncMonth to group by month
+        user_growth_monthly = user_growth_data.annotate(month=TruncMonth('date_joined')) \
+                                            .values('month') \
+                                            .annotate(count=Count('id')) \
+                                            .order_by('month')
+
+        user_growth = {entry['month'].strftime('%Y-%m'): entry['count'] for entry in user_growth_monthly}
+
+        # Prepare the final response data
+        data = {
+            "total_users": total_users,
+            "total_earnings": round(total_earnings, 2),
+            "new_users": new_users,
+            "user_growth": user_growth,
+        }
+        return Response({"status":"success","data": data}, status=200)

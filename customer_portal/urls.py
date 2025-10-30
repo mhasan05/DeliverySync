@@ -17,4 +17,8 @@ urlpatterns = [
     path('delivery/driver/', DriverOrderListView.as_view(), name='driver-orders'),
     path('delivery/<int:order_id>/', OrderDetailView.as_view(), name='order-detail'),
     path('delivery/pending_order/', PendingOrderListView.as_view(), name='pending_order'),
+
+
+    path('delivery/<str:user_id>/pending_order/', UserPendingOrderListView.as_view(), name='user_pending_order'),
+    path('delivery/<str:user_id>/complete_order/', UserCompliteOrderListView.as_view(), name='user_complete_order'),
 ]

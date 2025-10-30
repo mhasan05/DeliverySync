@@ -9,6 +9,7 @@ from django.shortcuts import get_object_or_404
 from asgiref.sync import async_to_sync
 from notifications.models import *
 from common_portal.utils import calculate_distance_and_time
+from driver_portal.models import DriverEarningHistory
 # Example delivery fee calculation function
 def calculate_delivery_fee(customer, product_weight):
     base_fee = 50  # example base
@@ -157,6 +158,8 @@ class UpdateDeliveryStatus(APIView):
             return Response({"status":"error","message":"Delivery request not found"}, status=404)
         if delivery.status == 'confirmed':
             return Response({"status":"error","message":"This order already confirmed"}, status=404)
+        if delivery.status == 'delivered':
+            return Response({"status":"error","message":"This order already delivered"}, status=404)
         assign_driver_id = delivery.assign_driver
         if assign_driver_id != request.user:
             return Response({"status":"error","message":"You can't update this delivery"}, status=404)
@@ -184,6 +187,13 @@ class UpdateDeliveryStatus(APIView):
                 data=data,
                 created_at=timezone.now()
             )
+            if status_update == 'delivered':
+                driver_earning = DriverEarningHistory(
+                    driver=assign_driver_id,
+                    delivery=delivery,
+                    amount=delivery.delivery_fee
+                )
+                driver_earning.save()
 
             invited_user = get_object_or_404(User, id=delivery.customer.id)
 
@@ -218,6 +228,8 @@ class ConfirmDelivery(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
     def post(self, request, delivery_id):
+        user = request.user
+        account_balance = user.account_balance
         try:
             delivery = DeliveryRequest.objects.get(id=delivery_id)
         except DeliveryRequest.DoesNotExist:
@@ -227,6 +239,11 @@ class ConfirmDelivery(APIView):
         customer = delivery.customer
         if customer != request.user:
             return Response({"status":"error","message":"You can't confirm this delivery"}, status=404)
+        if account_balance < delivery.delivery_fee:
+            return Response({"status":"error","message":"Insufficient balance"}, status=404)
+        driver_earning = delivery.delivery_fee - delivery.delivery_fee * 0.2
+        user.account_balance -= driver_earning
+        user.save()
         delivery.status = 'confirmed'
         delivery.save()
         return Response({"status":"success","message":"Successfully confirmed order"}, status=200)
@@ -279,5 +296,26 @@ class PendingOrderListView(APIView):
 
     def get(self, request):
         orders = DeliveryRequest.objects.filter(status='confirmed')
+        serializer = DeliveryRequestSerializer(orders, many=True)
+        return Response({"status":"success","data":serializer.data}, status=200)
+    
+
+# Pending order list
+class UserPendingOrderListView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request,user_id=None):
+        orders = DeliveryRequest.objects.filter(customer = user_id).exclude(status='delivered').exclude(status='cancelled')
+        serializer = DeliveryRequestSerializer(orders, many=True)
+        return Response({"status":"success","data":serializer.data}, status=200)
+    
+
+
+# Pending order list
+class UserCompliteOrderListView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request,user_id=None):
+        orders = DeliveryRequest.objects.filter(customer = user_id, status='delivered')
         serializer = DeliveryRequestSerializer(orders, many=True)
         return Response({"status":"success","data":serializer.data}, status=200)
